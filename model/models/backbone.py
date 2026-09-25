@@ -169,8 +169,6 @@ class YoloBackbone(BaseBackbone):
             if output is not None and len(output) != 0:
                 output = output.detach().cpu().numpy()
                 boxes = output[:, :4]
-                boxes[:,[0,2]] = boxes[:,[0,2]] 
-                boxes[:,[1,3]] = boxes[:,[1,3]] 
 
                 # Convert labels to COCO format
                 labels = output[:, -1] + 1

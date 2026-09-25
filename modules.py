@@ -226,11 +226,15 @@ def ensemble_models(input_path, image_size):
         np.array(result_dict3['scores']),
         np.array(result_dict4['scores'])]
 
+    has_detections = False
     for i in range(len(merged_boxes)):
         if len(merged_boxes[i]) > 0:
+            has_detections = True
             merged_boxes[i][:,2] += merged_boxes[i][:,0]  #xyxy
             merged_boxes[i][:,3] += merged_boxes[i][:,1]  #xyxy
 
+    if not has_detections:
+        return np.array([]), np.array([]), np.array([])
 
     final_boxes, final_scores, final_classes = box_fusion(
         merged_boxes,
@@ -317,8 +321,10 @@ def label_enhancement(image, result_dict):
 
     new_names, new_probs = classify(tmp_path, img_list)
 
+    names = list(result_dict['names'])
     for idx, id in enumerate(new_id_list):
-        result_dict['names'][id] = new_names[idx]
+        names[id] = new_names[idx]
+    result_dict['names'] = names
 
     return result_dict
 
