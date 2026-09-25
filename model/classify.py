@@ -1,5 +1,4 @@
 from .utils.getter import *
-import argparse
 import os
 import torch
 from torch.utils.data import  DataLoader
@@ -10,11 +9,6 @@ import pandas as pd
 from tqdm import tqdm
 from .augmentations.transforms import get_resize_augmentation
 from .augmentations.transforms import MEAN, STD
-
-parser = argparse.ArgumentParser(description='Classify an image / folder of images')
-parser.add_argument('--weight', type=str ,help='trained weight')
-parser.add_argument('--input_path', type=str, help='path to an image to inference')
-parser.add_argument('--output_path', type=str, help='path to save csv result file')
 
 # Global model, only changes when model name changes
 CLASSIFIER = None

@@ -5,9 +5,6 @@ import torch.nn as nn
 from tqdm import tqdm
 
 
-import sys
-sys.path.append('..')
-
 class Detector(BaseModel):
     def __init__(self, model, **kwargs):
         super(Detector, self).__init__(**kwargs)

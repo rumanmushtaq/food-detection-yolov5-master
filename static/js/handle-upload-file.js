@@ -14,12 +14,12 @@ function clearContent() {
 // Show uploaded image or video
 function showPicked(input) {
 
-  const extension = input.files[0].name.split(".")[1].toLowerCase();
+  const extension = input.files[0].name.split(".").pop().toLowerCase();
   const reader = new FileReader();
 
   reader.onload = function(e) {
     clearContent();
-    el("upload-label").innerHTML = input.files[0].name;
+    el("upload-label").textContent = input.files[0].name;
     var file_url = e.target.result
 
     if (extension === "mp4" || extension === 'avi' || extension === '3gpp' || extension === '3gp'){
@@ -33,7 +33,7 @@ function showPicked(input) {
     }
 
     else if(extension === "jpg" || extension === "jpeg" || extension === "png"){
-      var img_html = '<img id="user-image" src="' + file_url + '" style="display: block;margin-left: auto;margin-right: auto;width: 640px; height: 480px"/>';
+      var img_html = '<img id="user-image" src="' + file_url + '" style="display: block;margin-left: auto;margin-right: auto;max-width: 100%; height: auto"/>';
       $('#image-display').html(img_html); // replaces previous img
 
     }

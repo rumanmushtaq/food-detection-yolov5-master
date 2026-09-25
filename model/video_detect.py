@@ -12,7 +12,7 @@ from .augmentations.transforms import get_resize_augmentation
 from .augmentations.transforms import MEAN, STD
 
 # Use global model from detect.py, if model name changes, reload model
-from .detect import DETECTOR
+from . import detect
 
 
 class VideoSet:
@@ -46,7 +46,7 @@ class VideoSet:
                 'num_frames': self.NUM_FRAMES
             }
         else:
-            raise f"Cannot read video {os.path.basename(self.input_path)}"
+            raise ValueError(f"Cannot read video {os.path.basename(self.input_path)}")
 
     def __getitem__(self, idx):
         success, ori_frame = self.stream.read()
@@ -103,6 +103,9 @@ class VideoSet:
     def __len__(self):
         return self.NUM_FRAMES
 
+    def release(self):
+        self.stream.release()
+
     def __str__(self):
         s2 = f"Number of frames: {self.NUM_FRAMES}"
         return s2
@@ -157,8 +160,7 @@ class VideoWriter:
 
 class VideoDetect:
     def __init__(self, args, config):
-        global DETECTOR
-        self.device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')   
+        self.device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
         self.config = config
         self.min_iou = args.min_iou
         self.min_conf = args.min_conf
@@ -166,18 +168,18 @@ class VideoDetect:
         self.keep_ratio=config.keep_ratio
         self.fusion_mode=config.fusion_mode
 
-       
-        self.class_names, num_classes = get_class_names(args.weight)
-        self.class_names.insert(0, 'Background')
 
-        if DETECTOR is None or DETECTOR.model_name != config.model_name:
+        self.class_names, num_classes = get_class_names(args.weight)
+        self.class_names = ['Background'] + list(self.class_names)
+
+        if detect.DETECTOR is None or detect.DETECTOR.model_name != config.model_name:
             net = get_model(
                 args, config,
                 num_classes=num_classes)
             self.num_classes = num_classes
-            DETECTOR = Detector(model = net, device = self.device)
-            load_checkpoint(DETECTOR, args.weight)
-        DETECTOR.eval()
+            detect.DETECTOR = Detector(model = net, device = self.device)
+            load_checkpoint(detect.DETECTOR, args.weight)
+        detect.DETECTOR.eval()
 
     def run(self, batch):
         with torch.no_grad():
@@ -185,7 +187,7 @@ class VideoDetect:
             labels_result = []
             scores_result = []
                 
-            preds = DETECTOR.inference_step(batch)
+            preds = detect.DETECTOR.inference_step(batch)
 
             for idx, outputs in enumerate(preds):
                 img_w = batch['image_ws'][idx]

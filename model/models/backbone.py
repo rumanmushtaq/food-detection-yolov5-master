@@ -115,14 +115,15 @@ class YoloBackbone(BaseBackbone):
         if load_weights:
             tmp_path = os.path.join(CACHE_DIR, f'yolov{version_name}.pth')
             download_pretrained_weights(f'yolov{version_name}', tmp_path)
-            ckpt = torch.load(tmp_path, map_location='cpu')  # load checkpoint
+            ckpt = torch.load(tmp_path, map_location='cpu', weights_only=False)  # load checkpoint
             try:
-                ret = self.model.load_state_dict(ckpt, strict=False) 
-            except:
+                ret = self.model.load_state_dict(ckpt, strict=False)
+            except Exception:
                 pass
             print("Loaded pretrained model")
 
-        self.model = nn.DataParallel(self.model).cuda()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = nn.DataParallel(self.model).to(device)
         self.loss_fn = YoloLoss(
             num_classes=num_classes,
             model=self.model)

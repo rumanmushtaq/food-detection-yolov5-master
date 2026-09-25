@@ -8,7 +8,6 @@ import cv2
 import gdown
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from torch.nn.init import _calculate_fan_in_and_fan_out, _no_grad_normal_
 
 STANDARD_COLORS = [
     'LawnGreen', 'LightBlue' , 'Crimson', 'Gold', 'Azure', 'BlanchedAlmond', 'Bisque',
@@ -71,7 +70,7 @@ def draw_boxes_v2(img_name, img, boxes, label_ids, scores, label_names=None, obj
                         thickness=tf, lineType=cv2.FONT_HERSHEY_SIMPLEX)
                         
     # boxes input is xywh
-    boxes = boxes.astype(np.int)
+    boxes = boxes.astype(np.intp)
     img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     for idx, (box, label_id, score) in enumerate(zip(boxes, label_ids, scores)):
@@ -170,7 +169,7 @@ def write_to_video(img, boxes, labels, scores, imshow=True,  outvid = None, obj_
                         thickness=tf, lineType=cv2.FONT_HERSHEY_SIMPLEX)
 
     # boxes input is xywh
-    boxes = boxes.astype(np.int)
+    boxes = boxes.astype(np.intp)
 
     for idx, (box, label, score) in enumerate(zip(boxes, labels, scores)):
         plot_one_box(
@@ -195,7 +194,7 @@ def download_weights(id_or_url, cached=None, md5=None, quiet=False):
     else:
         url = 'https://drive.google.com/uc?id={}'.format(id_or_url)
 
-    return gdown.cached_download(url=url, path=cached, md5=md5, quiet=quiet)
+    return gdown.download(url=url, output=cached, quiet=quiet)
 
 
 weight_url = {

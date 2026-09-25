@@ -149,7 +149,7 @@ def postprocessing(
     """
     boxes, scores, labels = preds['bboxes'], preds['scores'], preds['classes']
 
-    if len(boxes) == 0 or boxes is None:
+    if boxes is None or len(boxes) == 0:
         return {
             'bboxes': boxes, 
             'scores': scores, 
@@ -163,7 +163,6 @@ def postprocessing(
         boxes, labels, scores, min_wh=2, max_wh=4096
     )
 
-    current_img_size = current_img_size if current_img_size is not None else None
     if len(boxes) != 0:
         if mode is not None:
             boxes, scores, labels = box_fusion(
@@ -181,7 +180,7 @@ def postprocessing(
         labels = labels[indexes]
 
         if max_dets is not None:
-            sorted_index = np.argsort(scores)
+            sorted_index = np.argsort(scores)[::-1]
             boxes = boxes[sorted_index]
             scores = scores[sorted_index]
             labels = labels[sorted_index]
@@ -228,6 +227,7 @@ def box_fusion(
         for ens_boxes in bounding_boxes:
             if isinstance(ens_boxes, list):
                 ens_boxes = np.array(ens_boxes)
+            ens_boxes = ens_boxes.copy()
             ens_boxes[:,0] = ens_boxes[:,0]*1.0/image_size[0]
             ens_boxes[:,1] = ens_boxes[:,1]*1.0/image_size[1]
             ens_boxes[:,2] = ens_boxes[:,2]*1.0/image_size[0]

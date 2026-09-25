@@ -3,7 +3,7 @@
 # from google.cloud import storage
 
 import os
-import platform
+import subprocess
 import time
 from pathlib import Path
 
@@ -25,7 +25,7 @@ def attempt_download(weights):
         if not (r == 0 and os.path.exists(weights) and os.path.getsize(weights) > 1E6):  # weights exist and > 1MB
             os.remove(weights) if os.path.exists(weights) else None  # remove partial downloads
             s = ''
-            r = os.system(s)  # execute, capture return values
+            r = subprocess.run(s, shell=True).returncode  # execute, capture return values
 
             # Error check
             if not (r == 0 and os.path.exists(weights) and os.path.getsize(weights) > 1E6):  # weights exist and > 1MB
@@ -43,13 +43,16 @@ def gdrive_download(id='1n_oKgR81BJtqk75b00eAjdv03qVCQn2f', name='coco128.zip'):
     os.remove('cookie') if os.path.exists('cookie') else None
 
     # Attempt file download
-    out = "NUL" if platform.system() == "Windows" else "/dev/null"
-    os.system('curl -c ./cookie -s -L "drive.google.com/uc?export=download&id=%s" > %s ' % (id, out))
+    subprocess.run(['curl', '-c', './cookie', '-s', '-L',
+                     'drive.google.com/uc?export=download&id=%s' % id],
+                    stdout=subprocess.DEVNULL)
     if os.path.exists('cookie'):  # large file
-        s = 'curl -Lb ./cookie "drive.google.com/uc?export=download&confirm=%s&id=%s" -o %s' % (get_token(), id, name)
+        r = subprocess.run(['curl', '-Lb', './cookie',
+                            'drive.google.com/uc?export=download&confirm=%s&id=%s' % (get_token(), id),
+                            '-o', name]).returncode
     else:  # small file
-        s = 'curl -s -L -o %s "drive.google.com/uc?export=download&id=%s"' % (name, id)
-    r = os.system(s)  # execute, capture return values
+        r = subprocess.run(['curl', '-s', '-L', '-o', name,
+                            'drive.google.com/uc?export=download&id=%s' % id]).returncode
     os.remove('cookie') if os.path.exists('cookie') else None
 
     # Error check
@@ -61,7 +64,7 @@ def gdrive_download(id='1n_oKgR81BJtqk75b00eAjdv03qVCQn2f', name='coco128.zip'):
     # Unzip if archive
     if name.endswith('.zip'):
         print('unzipping... ', end='')
-        os.system('unzip -q %s' % name)  # unzip
+        subprocess.run(['unzip', '-q', name])  # unzip
         os.remove(name)  # remove zip to free space
 
     print('Done (%.1fs)' % (time.time() - t))

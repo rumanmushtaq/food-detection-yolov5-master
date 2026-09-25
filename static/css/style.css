@@ -1,7 +1,7 @@
 body {
     font-family: Arial,
         Helvetica,
-        sans-serif normal;
+        sans-serif;
     background-color: whitesmoke;
 }
 
@@ -54,7 +54,7 @@ video {
     margin-top: 0.5em;
     padding: 10px;
     font-size: 15px;
-    font-weight: italic;
+    font-style: italic;
 }
 
 button.choose-file-button {
@@ -78,8 +78,8 @@ button:hover {
 }
 
 button:disabled {
-    background: inherit;
-    display: none;
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 #threshold-range,
@@ -134,7 +134,7 @@ button:disabled {
 }
 
 .vid-result {
-    height: 350;
+    height: 350px;
     display: block;
     margin: auto;
 }

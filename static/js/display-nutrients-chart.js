@@ -1,10 +1,17 @@
 var csv_file = document.querySelector("#csv_file");
 var csv_file2 = document.querySelector("#csv_file2");
+
+if (!csv_file || !csv_file2) {
+  // Not on a results page, skip chart initialization
+} else {
+
 var canvas1 = document.querySelector("#container1");
 var canvas2 = document.querySelector("#container2");
 
 var filename =  csv_file.textContent;
 var filename2 = csv_file2.textContent;
+
+var chart1 = null, chart2 = null;
 
 var TITLE = 'Nutrients Statistics Chart';
 
@@ -12,13 +19,13 @@ var TITLE = 'Nutrients Statistics Chart';
 var HORIZONTAL = false;
 
 // `false` for individual bars, `true` for stacked bars
-var STACKED = true;  
+var STACKED = true;
 
 
-var LABELS = 'names';  
+var LABELS = 'names';
 
 // For each column representing a data series, define its name and color
-var SERIES = [  
+var SERIES = [
     {
         column: 'calories',
         name: 'calories',
@@ -53,10 +60,10 @@ var X_AXIS = 'Elements Info';
 var Y_AXIS = 'Amount';
 
 // `true` to show the grid, `false` to hide
-var SHOW_GRID = true; 
+var SHOW_GRID = true;
 
 // `true` to show the legend, `false` to hide
-var SHOW_LEGEND = true; 
+var SHOW_LEGEND = true;
 
 function getChart(val){
     if(val.value === "1"){
@@ -91,10 +98,11 @@ function getChart(val){
 
             let ctx = document.getElementById('container1').getContext('2d');
 
-            new Chart(ctx, {
+            if (chart1) { chart1.destroy(); }
+            chart1 = new Chart(ctx, {
             type: HORIZONTAL ? 'horizontalBar' : 'bar',
             data: barChartData,
-            
+
             options: {
                 title: {
                     display: true,
@@ -165,7 +173,7 @@ function getChart(val){
             let info = ['calories', 'protein', 'fat', 'carbs', 'fiber'];
 
             for(let i=0;i<names.length;i++){
-                let randomColor = Math.floor(Math.random()*16777215).toString(16);
+                let randomColor = Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
                 let colour = "#" + randomColor;
 
                 SERIES1.push({
@@ -198,10 +206,11 @@ function getChart(val){
 
             var ctx = document.getElementById('container2').getContext('2d');
 
-            new Chart(ctx, {
+            if (chart2) { chart2.destroy(); }
+            chart2 = new Chart(ctx, {
                 type: HORIZONTAL ? 'horizontalBar' : 'bar',
                 data: barChartData,
-                
+
                 options: {
                     title: {
                         display: true,
@@ -261,3 +270,5 @@ function getChart(val){
         });
     }
 }
+
+} // end guard

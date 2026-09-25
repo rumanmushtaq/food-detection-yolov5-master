@@ -1,17 +1,4 @@
 from model.utils.getter import *
-import argparse
-
-parser = argparse.ArgumentParser(description='Perfom Objet Detection')
-parser.add_argument('--weight', type=str, default = None,help='version of EfficentDet')
-parser.add_argument('--input_path', type=str, help='path to an image to inference')
-parser.add_argument('--output_path', type=str, help='path to save inferenced image')
-parser.add_argument('--gpus', type=str, default='0', help='path to save inferenced image')
-parser.add_argument('--min_conf', type=float, default= 0.15, help='minimum confidence for an object to be detect')
-parser.add_argument('--min_iou', type=float, default=0.5, help='minimum iou threshold for non max suppression')
-parser.add_argument('--tta', action='store_true', help='whether to use test time augmentation')
-parser.add_argument('--tta_ensemble_mode', type=str, default='wbf', help='tta ensemble mode')
-parser.add_argument('--tta_conf_threshold', type=float, default=0.01, help='tta confidence score threshold')
-parser.add_argument('--tta_iou_threshold', type=float, default=0.9, help='tta iou threshold')
 
 CACHE_DIR='./.cache'
 
@@ -116,7 +103,7 @@ def detect(args, config):
     )
 
     class_names, num_classes = get_class_names(args.weight)
-    class_names.insert(0, 'Background')
+    class_names = ['Background'] + list(class_names)
     
     if DETECTOR is None or DETECTOR.model_name != config.model_name:
         net = get_model(args, config, num_classes=num_classes)
@@ -143,11 +130,11 @@ def detect(args, config):
               
                 preds = DETECTOR.inference_step(batch)
 
-                for idx, outputs in enumerate(preds):
-                    img_w = batch['image_ws'][idx]
-                    img_h = batch['image_hs'][idx]
-                    img_ori_ws = batch['image_ori_ws'][idx]
-                    img_ori_hs = batch['image_ori_hs'][idx]
+                for pred_idx, outputs in enumerate(preds):
+                    img_w = batch['image_ws'][pred_idx]
+                    img_h = batch['image_hs'][pred_idx]
+                    img_ori_ws = batch['image_ori_ws'][pred_idx]
+                    img_ori_hs = batch['image_ori_hs'][pred_idx]
                     
                     outputs = postprocessing(
                         outputs, 

@@ -1,9 +1,10 @@
 import yaml
+import os
 
 class Config():
     def __init__(self, yaml_path):
-        yaml_file = open(yaml_path)
-        _attr = yaml.load(yaml_file, Loader=yaml.FullLoader)['settings']
+        with open(yaml_path) as yaml_file:
+            _attr = yaml.load(yaml_file, Loader=yaml.FullLoader)['settings']
         for key, value in _attr.items():
             self.__dict__[key] = value
 
@@ -30,7 +31,7 @@ class Config():
     
 
 def config_from_dict(_dict, ignore_keys=[]):
-    config = Config('./model/configs/configs.yaml')
+    config = Config(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs.yaml'))
     for k,v in _dict.items():
         if k not in ignore_keys:
             config.__setattr__(k,v)

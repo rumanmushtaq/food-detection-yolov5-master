@@ -17,3 +17,34 @@ food-101.tar.gz
 food-101
 food-classify
 weights
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+api/secret.py
+*.pem
+*.key
+*.cert
+
+# Cache
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Runtime uploads and outputs
+static/assets/uploads/
+static/assets/detections/
+static/assets/videos/
+static/csv/
+static/metadata/
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

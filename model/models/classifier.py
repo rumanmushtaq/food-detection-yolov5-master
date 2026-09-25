@@ -36,7 +36,7 @@ class Classifier(BaseModel):
             probs, _ = torch.max(probs, dim=1)
             return preds.cpu().numpy(), probs.cpu().numpy()
         else:
-            return preds.numpy()
+            return preds.cpu().numpy()
 
     def evaluate_step(self, batch):
         outputs = self.model(batch, self.device)

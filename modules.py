@@ -1,20 +1,20 @@
-from re import I
 import cv2
 from PIL import Image
 import numpy as np
 import os
 import pandas as pd
 from model import (
-    detect, get_config, Config, 
-    download_weights, draw_boxes_v2, 
-    get_class_names, postprocessing, 
+    detect, get_config, Config,
+    download_weights, draw_boxes_v2,
+    get_class_names, postprocessing,
     box_fusion, classify, change_box_order,
     VideoPipeline)
 from api import get_info_from_db
 
-CACHE_DIR = '.cache'
-CSV_FOLDER = './static/csv'
-METADATA_FOLDER = './static/metadata'
+_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_DIR = os.path.join(_MODULE_DIR, '.cache')
+CSV_FOLDER = os.path.join(_MODULE_DIR, 'static', 'csv')
+METADATA_FOLDER = os.path.join(_MODULE_DIR, 'static', 'metadata')
 
 class Arguments:
     def __init__(self, model_name=None) -> None:
@@ -33,7 +33,7 @@ class Arguments:
         if self.model_name:
             tmp_path = os.path.join(CACHE_DIR, self.model_name+'.pth')
             download_pretrained_weights(
-                self.model_name, 
+                self.model_name,
                 cached=tmp_path)
             self.weight=tmp_path
 
@@ -55,18 +55,18 @@ def draw_image(out_path, ori_img, result_dict, class_names):
 
     if "names" in result_dict.keys():
         draw_boxes_v2(
-            out_path, 
-            ori_img , 
-            result_dict["boxes"], 
-            result_dict["labels"], 
+            out_path,
+            ori_img ,
+            result_dict["boxes"],
+            result_dict["labels"],
             result_dict["scores"],
             label_names = result_dict["names"])
     else:
         draw_boxes_v2(
-            out_path, 
-            ori_img , 
-            result_dict["boxes"], 
-            result_dict["labels"], 
+            out_path,
+            ori_img ,
+            result_dict["boxes"],
+            result_dict["labels"],
             result_dict["scores"],
             obj_list = class_names)
 
@@ -81,20 +81,20 @@ def save_cache(result_dict, cache_name, cache_dir=CACHE_DIR, exclude=[]):
                 'y': boxes[:, 1],
                 'w': boxes[:, 2],
                 'h': boxes[:, 3],
-            })       
+            })
 
     for key in result_dict.keys():
         if key != 'boxes' and key not in exclude:
             cache_dict[key] = result_dict[key]
     df = pd.DataFrame(cache_dict)
 
-    df.to_csv(f'./{cache_dir}/{cache_name}.csv', index=False)
+    df.to_csv(os.path.join(cache_dir, f'{cache_name}.csv'), index=False)
 
 def check_cache(cache_name):
-    return os.path.isfile(f'./{CACHE_DIR}/{cache_name}.csv')
+    return os.path.isfile(os.path.join(CACHE_DIR, f'{cache_name}.csv'))
 
 def load_cache(image_name):
-    df = pd.read_csv(f'./{CACHE_DIR}/{image_name}.csv')
+    df = pd.read_csv(os.path.join(CACHE_DIR, f'{image_name}.csv'))
     result_dict = {
         'boxes': [],
         'labels': [],
@@ -138,18 +138,19 @@ def drop_duplicate_fill0(result_dict):
             if value is None:
                 value = 0
             new_result_dict[key].append(value)
-    
+
     return new_result_dict
 
 
 def postprocess(result_dict, img_w, img_h, min_iou, min_conf):
-    
+
     boxes = np.array(result_dict['boxes'])
     scores = np.array(result_dict['scores'])
     labels = np.array(result_dict['labels'])
     if len(boxes) != 0:
-        boxes[:,2] += boxes[:,0] 
-        boxes[:,3] += boxes[:,1] 
+        boxes = boxes.copy()
+        boxes[:,2] += boxes[:,0]
+        boxes[:,3] += boxes[:,1]
 
         outputs = {
             'bboxes': boxes,
@@ -158,15 +159,15 @@ def postprocess(result_dict, img_w, img_h, min_iou, min_conf):
         }
 
         outputs = postprocessing(
-            outputs, 
+            outputs,
             current_img_size=[img_w, img_h],
             min_iou=min_iou,
             min_conf=min_conf,
             output_format='xywh',
             mode='nms')
 
-        boxes = outputs['bboxes'] 
-        labels = outputs['classes']  
+        boxes = outputs['bboxes']
+        labels = outputs['classes']
         scores = outputs['scores']
 
     return {
@@ -192,7 +193,7 @@ def ensemble_models(input_path, image_size):
     args2 = Arguments(model_name='yolov5m')
     args3 = Arguments(model_name='yolov5l')
     args4 = Arguments(model_name='yolov5x')
-    
+
     args1.input_path = input_path
     args2.input_path = input_path
     args3.input_path = input_path
@@ -210,32 +211,33 @@ def ensemble_models(input_path, image_size):
     result_dict4 = detect(args4, config4)
 
     merged_boxes = [
-        np.array(result_dict1['boxes']), 
-        np.array(result_dict2['boxes']), 
-        np.array(result_dict3['boxes']), 
+        np.array(result_dict1['boxes']),
+        np.array(result_dict2['boxes']),
+        np.array(result_dict3['boxes']),
         np.array(result_dict4['boxes'])]
     merged_labels = [
-        np.array(result_dict1['labels']), 
-        np.array(result_dict2['labels']), 
-        np.array(result_dict3['labels']), 
+        np.array(result_dict1['labels']),
+        np.array(result_dict2['labels']),
+        np.array(result_dict3['labels']),
         np.array(result_dict4['labels'])]
     merged_scores = [
-        np.array(result_dict1['scores']), 
-        np.array(result_dict2['scores']), 
-        np.array(result_dict3['scores']), 
+        np.array(result_dict1['scores']),
+        np.array(result_dict2['scores']),
+        np.array(result_dict3['scores']),
         np.array(result_dict4['scores'])]
 
     for i in range(len(merged_boxes)):
-        merged_boxes[i][:,2] += merged_boxes[i][:,0]  #xyxy
-        merged_boxes[i][:,3] += merged_boxes[i][:,1]  #xyxy
+        if len(merged_boxes[i]) > 0:
+            merged_boxes[i][:,2] += merged_boxes[i][:,0]  #xyxy
+            merged_boxes[i][:,3] += merged_boxes[i][:,1]  #xyxy
 
-  
+
     final_boxes, final_scores, final_classes = box_fusion(
         merged_boxes,
         merged_scores,
         merged_labels,
         mode="wbf",
-        image_size=image_size, 
+        image_size=image_size,
         iou_threshold=0.9,
         weights = [0.25, 0.25, 0.25, 0.25]
     )
@@ -282,36 +284,25 @@ def convert_dict_to_list(result_dict):
     return result_list
 
 
-def crop_box(image, box, expand=10):
+def crop_box(image, box):
 
     h,w,c = image.shape
-    # expand box a little
-    new_box = box.copy()
-    # new_box[0] -= expand
-    # new_box[1] -= expand
-    # new_box[2] += expand
-    # new_box[3] += expand
-
-    # new_box[0] = max(0, new_box[0])
-    # new_box[1] = max(0, new_box[1])
-    # new_box[2] = min(h, new_box[2])
-    # new_box[3] = min(w, new_box[3])
-
     #xyxy box, cv2 image h,w,c
-    return image[int(new_box[1]):int(new_box[3]), int(new_box[0]):int(new_box[2]), :]
+    return image[int(box[1]):int(box[3]), int(box[0]):int(box[2]), :]
 
 def label_enhancement(image, result_dict):
     boxes = np.array(result_dict['boxes'])
     labels = np.array(result_dict['labels'])
     if len(boxes) == 0:
         return result_dict
+    boxes = boxes.copy()
     boxes[:,2] += boxes[:,0]  #xyxy
     boxes[:,3] += boxes[:,1]  #xyxy
-    
+
     # Label starts at 1
     img_list = []
     new_id_list = []
- 
+
     for box_id, (box, label) in enumerate(zip(boxes, labels)):
         if label == 21: # other food 31
             cropped = crop_box(image, box) # rgb
@@ -321,24 +312,24 @@ def label_enhancement(image, result_dict):
     tmp_path = os.path.join(CACHE_DIR, 'effnetb4.pth')
     if not os.path.isfile(tmp_path):
         download_pretrained_weights(
-            'effnetb4', 
+            'effnetb4',
             cached=tmp_path)
 
     new_names, new_probs = classify(tmp_path, img_list)
 
     for idx, id in enumerate(new_id_list):
         result_dict['names'][id] = new_names[idx]
-    
+
     return result_dict
 
 def get_video_prediction(
-    input_path, 
+    input_path,
     output_path,
     model_name,
     min_iou=0.5,
     min_conf=0.1,
     enhance_labels=False):
-    
+
     ignore_keys = [
             'min_iou_val',
             'min_conf_val',
@@ -352,11 +343,11 @@ def get_video_prediction(
     args = Arguments(model_name=model_name)
 
     config = get_config(args.weight, ignore_keys)
-    if config is None:  
+    if config is None:
         print("Config not found. Load configs from configs/configs.yaml")
         config = Config(os.path.join('model/configs','configs.yaml'))
     else:
-        print("Load configs from weight")   
+        print("Load configs from weight")
 
     args.input_path = input_path
     args.output_path = output_path
@@ -366,7 +357,7 @@ def get_video_prediction(
     return video_detect.run()
 
 def get_prediction(
-    input_path, 
+    input_path,
     output_path,
     model_name,
     ensemble=False,
@@ -383,7 +374,7 @@ def get_prediction(
             'tta_conf_threshold',
             'tta_iou_threshold',
         ]
-    
+
     # get hashed key from image path
     ori_hashed_key = os.path.splitext(os.path.basename(input_path))[0]
 
@@ -403,7 +394,7 @@ def get_prediction(
     # check whether cache exists
     if check_cache(hashed_key):
         print(f"Load cache from {hashed_key}")
-        class_names, _ = get_class_names(f'./{CACHE_DIR}/{model_name}.pth')
+        class_names, _ = get_class_names(os.path.join(CACHE_DIR, f'{model_name}.pth'))
         result_dict = load_cache(hashed_key)
     else:
         if not ensemble:
@@ -411,21 +402,21 @@ def get_prediction(
             class_names, _ = get_class_names(args.weight)
 
             config = get_config(args.weight, ignore_keys)
-            if config is None:  
+            if config is None:
                 print("Config not found. Load configs from configs/configs.yaml")
                 config = Config(os.path.join('model/configs','configs.yaml'))
             else:
-                print("Load configs from weight")   
+                print("Load configs from weight")
 
             args.input_path = input_path
             result_dict = detect(args, config)
-        
+
         else:
-            result_dict, class_names = ensemble_models(input_path, [img_w,img_h]) 
+            result_dict, class_names = ensemble_models(input_path, [img_w,img_h])
         save_cache(result_dict, hashed_key)
         print(f"Save cache to {hashed_key}")
-        
-    class_names.insert(0, "Background")
+
+    class_names = ["Background"] + list(class_names)
 
     # post process
     result_dict = postprocess(result_dict, img_w, img_h, min_iou, min_conf)
@@ -442,7 +433,7 @@ def get_prediction(
 
     # Save metadata food info as CSV
     save_cache(result_dict, ori_hashed_key+'_metadata', METADATA_FOLDER)
-    
+
     # draw result
     draw_image(output_path, ori_img, result_dict, class_names)
 
@@ -451,7 +442,7 @@ def get_prediction(
     # Save food info as CSV
     csv_result_dict = drop_duplicate_fill0(result_dict)
     save_cache(csv_result_dict, ori_hashed_key+'_info', CSV_FOLDER, exclude=['boxes', "labels", "scores"])
-    
+
     # Transpose CSV
     df = pd.read_csv(os.path.join(CSV_FOLDER, ori_hashed_key+'_info.csv'))
     df.set_index('names').T.to_csv(os.path.join(CSV_FOLDER, ori_hashed_key+'_info2.csv'))

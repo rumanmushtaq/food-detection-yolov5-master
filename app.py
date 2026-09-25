@@ -6,8 +6,6 @@ import numpy as np
 import tldextract
 import pytube
 import hashlib
-import tldextract
-import pytube
 import time
 import base64
 
@@ -18,30 +16,22 @@ from werkzeug.utils import secure_filename
 from modules import get_prediction, get_video_prediction
 from flask_ngrok import run_with_ngrok
 from flask_cors import CORS, cross_origin
-from werkzeug.utils import secure_filename
 
-parser = argparse.ArgumentParser('YOLOv5 Online Food Recognition')
-parser.add_argument('--ngrok', action='store_true',
-                    default=False, help="Run on local or ngrok")
-parser.add_argument('--host',  type=str,
-                    default='localhost:8000', help="Local IP")
-parser.add_argument('--debug', action='store_true',
-                    default=False, help="Run app in debug mode")
-
-ASSETS_DIR = os.path.dirname(os.path.abspath(__file__))
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 1
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB limit
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 
-UPLOAD_FOLDER = './static/assets/uploads'
-CSV_FOLDER = './static/csv'
-VIDEO_FOLDER = './static/assets/videos'
-DETECTION_FOLDER = './static/assets/detections'
-METADATA_FOLDER = './static/metadata'
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'assets', 'uploads')
+CSV_FOLDER = os.path.join(BASE_DIR, 'static', 'csv')
+VIDEO_FOLDER = os.path.join(BASE_DIR, 'static', 'assets', 'videos')
+DETECTION_FOLDER = os.path.join(BASE_DIR, 'static', 'assets', 'detections')
+METADATA_FOLDER = os.path.join(BASE_DIR, 'static', 'metadata')
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['CSV_FOLDER'] = CSV_FOLDER
@@ -68,7 +58,7 @@ def make_dir(path):
 
 
 def file_type(path):
-    filename = path.split('/')[-1]
+    filename = os.path.basename(path)
     if allowed_file_image(filename):
         filetype = 'image'
     elif allowed_file_video(filename):
@@ -98,6 +88,8 @@ def hash_video(video_path):
     success, ori_frame = stream.read()
     stream.release()
     stream = None
+    if not success or ori_frame is None:
+        raise ValueError(f"Failed to read video frame from {video_path}")
     image_bytes = cv2.imencode('.jpg', ori_frame)[1].tobytes()
     filename = hashlib.sha256(image_bytes).hexdigest() + f'{ext}'
     return filename
@@ -105,7 +97,7 @@ def hash_video(video_path):
 
 def download(url):
     """
-    Handle input url from client 
+    Handle input url from client
     """
 
     ext = tldextract.extract(url)
@@ -159,12 +151,12 @@ def save_upload(file):
         make_dir(app.config['VIDEO_FOLDER'])
         path = os.path.join(app.config['VIDEO_FOLDER'], filename)
 
+    else:
+        raise ValueError(f"Unsupported file format: {filename}")
+
     file.save(path)
 
     return path
-
-
-path = Path(__file__).parent
 
 
 @app.route('/')
@@ -193,127 +185,132 @@ def detect_by_webcam_page():
 @cross_origin(supports_credentials=True)
 def analyze():
     if request.method == 'POST':
-        out_name = None
-        filepath = None
-        filename = None
-        filetype = None
-        csv_name1 = None
-        csv_name2 = None
+        try:
+            out_name = None
+            filepath = None
+            filename = None
+            filetype = None
+            csv_name1 = None
+            csv_name2 = None
 
-        print("File: ", request.files)
+            print("File: ", request.files)
 
-        if 'webcam-button' in request.form:
-            # Get webcam capture
+            if 'webcam-button' in request.form:
+                # Get webcam capture
 
-            f = request.files['blob-file']
-            ori_file_name = secure_filename(f.filename)
-            filetype = file_type(ori_file_name)
+                f = request.files['blob-file']
+                ori_file_name = secure_filename(f.filename)
+                filetype = file_type(ori_file_name)
 
-            filename = time.strftime("%Y%m%d-%H%M%S") + '.png'
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                filename = time.strftime("%Y%m%d-%H%M%S") + '.png'
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-            # save file to /static/uploads
-            img = Image.open(f.stream)
-            # img.show()
-            img.save(filepath)
+                # save file to /static/uploads
+                img = Image.open(f.stream)
+                # img.show()
+                img.save(filepath)
 
-        elif 'url-button' in request.form:
-            # Get image/video from input url
+            elif 'url-button' in request.form:
+                # Get image/video from input url
 
-            url = request.form['url_link']
-            filename, filepath = download(url)
+                url = request.form['url_link']
+                filename, filepath = download(url)
 
-            filetype = file_type(filename)
+                filetype = file_type(filename)
 
-        elif 'upload-button' in request.form:
-            # Get uploaded file
+            elif 'upload-button' in request.form:
+                # Get uploaded file
 
-            f = request.files['file']
-            ori_file_name = secure_filename(f.filename)
-            _, ext = os.path.splitext(ori_file_name)
+                f = request.files['file']
+                ori_file_name = secure_filename(f.filename)
+                _, ext = os.path.splitext(ori_file_name)
 
-            filetype = file_type(ori_file_name)
+                filetype = file_type(ori_file_name)
+
+                if filetype == 'image':
+                    # Get cache name by hashing image
+                    data = f.read()
+                    filename = hashlib.sha256(data).hexdigest() + f'{ext}'
+
+                    # Save file to /static/uploads
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    np_img = np.frombuffer(data, np.uint8)
+                    img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+                    cv2.imwrite(filepath, img)
+
+                elif filetype == 'video':
+                    temp_filepath = os.path.join(
+                        app.config['UPLOAD_FOLDER'], ori_file_name)
+                    f.save(temp_filepath)
+                    filename = hash_video(temp_filepath)
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    os.rename(temp_filepath, filepath)
+
+            # Get all inputs in form with defaults
+            iou = request.form.get('threshold-range', '50')
+            confidence = request.form.get('confidence-range', '25')
+            model_types = request.form.get('model-types', 'yolov5s')
+            enhanced = request.form.get('enhanced')
+            ensemble = request.form.get('ensemble')
+            ensemble = True if ensemble == 'on' else False
+            enhanced = True if enhanced == 'on' else False
+            model_types = model_types.lower() if model_types else 'yolov5s'
+            min_conf = float(confidence)/100
+            min_iou = float(iou)/100
 
             if filetype == 'image':
-                # Get cache name by hashing image
-                data = f.read()
-                filename = hashlib.sha256(data).hexdigest() + f'{ext}'
+                # Get filename of detected image
 
-                # Save file to /static/uploads
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                np_img = np.fromstring(data, np.uint8)
-                img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
-                cv2.imwrite(filepath, img)
+                out_name = "Image Result"
+                output_path = os.path.join(
+                    app.config['DETECTION_FOLDER'], filename)
+
+                filename = get_prediction(
+                    filepath,
+                    output_path,
+                    model_name=model_types,
+                    ensemble=ensemble,
+                    min_conf=min_conf,
+                    min_iou=min_iou,
+                    enhance_labels=enhanced)
 
             elif filetype == 'video':
-                temp_filepath = os.path.join(
-                    app.config['UPLOAD_FOLDER'], ori_file_name)
-                f.save(temp_filepath)
-                filename = hash_video(temp_filepath)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                os.rename(temp_filepath, filepath)
+                # Get filename of detected video
 
-        # Get all inputs in form
-        iou = request.form.get('threshold-range')
-        confidence = request.form.get('confidence-range')
-        model_types = request.form.get('model-types')
-        enhanced = request.form.get('enhanced')
-        ensemble = request.form.get('ensemble')
-        ensemble = True if ensemble == 'on' else False
-        enhanced = True if enhanced == 'on' else False
-        model_types = str.lower(model_types)
-        min_conf = float(confidence)/100
-        min_iou = float(iou)/100
+                out_name = "Video Result"
+                output_path = os.path.join(
+                    app.config['DETECTION_FOLDER'], filename)
 
-        if filetype == 'image':
-            # Get filename of detected image
+                filename = get_video_prediction(
+                    filepath,
+                    output_path,
+                    model_name=model_types,
+                    min_conf=min_conf,
+                    min_iou=min_iou,
+                    enhance_labels=enhanced)
+            else:
+                error_msg = "Invalid input url!!!"
+                return render_template('detect-input-url.html', error_msg=error_msg)
 
-            out_name = "Image Result"
-            output_path = os.path.join(
-                app.config['DETECTION_FOLDER'], filename)
+            filename = os.path.basename(filename)
+            csv_name, _ = os.path.splitext(filename)
 
-            filename = get_prediction(
-                filepath,
-                output_path,
-                model_name=model_types,
-                ensemble=ensemble,
-                min_conf=min_conf,
-                min_iou=min_iou,
-                enhance_labels=enhanced)
+            csv_name1 = os.path.join(
+                app.config['CSV_FOLDER'], csv_name + '_info.csv')
+            csv_name2 = os.path.join(
+                app.config['CSV_FOLDER'], csv_name + '_info2.csv')
 
-        elif filetype == 'video':
-            # Get filename of detected video
+            if 'url-button' in request.form:
+                return render_template('detect-input-url.html', out_name=out_name, fname=filename, filetype=filetype, csv_name=csv_name1, csv_name2=csv_name2)
 
-            out_name = "Video Result"
-            output_path = os.path.join(
-                app.config['DETECTION_FOLDER'], filename)
+            elif 'webcam-button' in request.form:
+                return render_template('detect-webcam-capture.html', out_name=out_name, fname=filename, filetype=filetype, csv_name=csv_name1, csv_name2=csv_name2)
 
-            filename = get_video_prediction(
-                filepath,
-                output_path,
-                model_name=model_types,
-                min_conf=min_conf,
-                min_iou=min_iou,
-                enhance_labels=enhanced)
-        else:
-            error_msg = "Invalid input url!!!"
-            return render_template('detect-input-url.html', error_msg=error_msg)
+            return render_template('detect-upload-file.html', out_name=out_name, fname=filename, filetype=filetype, csv_name=csv_name1, csv_name2=csv_name2)
 
-        filename = os.path.basename(filename)
-        csv_name, _ = os.path.splitext(filename)
-
-        csv_name1 = os.path.join(
-            app.config['CSV_FOLDER'], csv_name + '_info.csv')
-        csv_name2 = os.path.join(
-            app.config['CSV_FOLDER'], csv_name + '_info2.csv')
-
-        if 'url-button' in request.form:
-            return render_template('detect-input-url.html', out_name=out_name, fname=filename, filetype=filetype, csv_name=csv_name1, csv_name2=csv_name2)
-
-        elif 'webcam-button' in request.form:
-            return render_template('detect-webcam-capture.html', out_name=out_name, fname=filename, filetype=filetype, csv_name=csv_name1, csv_name2=csv_name2)
-
-        return render_template('detect-upload-file.html', out_name=out_name, fname=filename, filetype=filetype, csv_name=csv_name1, csv_name2=csv_name2)
+        except Exception as e:
+            print(f"Error in /analyze: {e}")
+            return render_template('detect-input-url.html', error_msg=f"An error occurred: {str(e)}")
 
     return redirect('/')
 
@@ -330,11 +327,11 @@ def api_call():
             url = request.json['url']
             filename, filepath = download(url)
 
-            model_types = request.json['model_types']
-            ensemble = request.json['ensemble']
-            min_conf = request.json['min_conf']
-            min_iou = request.json['min_iou']
-            enhanced = request.json['enhanced']
+            model_types = request.json.get('model_types', 'yolov5s')
+            ensemble = request.json.get('ensemble', False)
+            min_conf = request.json.get('min_conf', 0.25)
+            min_iou = request.json.get('min_iou', 0.5)
+            enhanced = request.json.get('enhanced', False)
 
             output_path = os.path.join(
                 app.config['DETECTION_FOLDER'], filename)
@@ -361,9 +358,6 @@ def api_call():
 
 @app.after_request
 def add_header(response):
-    # Include cookie for every request
-    response.headers.add('Access-Control-Allow-Credentials', True)
-
     # Prevent the client from caching the response
     if 'Cache-Control' not in response.headers:
         response.headers['Cache-Control'] = 'public, no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
@@ -373,6 +367,14 @@ def add_header(response):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser('YOLOv5 Online Food Recognition')
+    parser.add_argument('--ngrok', action='store_true',
+                        default=False, help="Run on local or ngrok")
+    parser.add_argument('--host',  type=str,
+                        default='localhost:8000', help="Local IP")
+    parser.add_argument('--debug', action='store_true',
+                        default=False, help="Run app in debug mode")
+
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     if not os.path.exists(DETECTION_FOLDER):

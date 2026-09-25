@@ -215,7 +215,7 @@ if __name__=='__main__':
                     optim_params = {'lr': 0.1},     
                     device = device)
 
-    state = torch.load('./weights/best.pth')
+    state = torch.load('./weights/best.pth', map_location='cpu', weights_only=False)
     model.model.load_state_dict(state['model'])
 
     val_transforms = get_augmentation(_type = 'val')

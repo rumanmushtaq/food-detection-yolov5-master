@@ -34,22 +34,9 @@ function runWebcam() {
     return;
   }
 
-  if (navigator.mediaDevices === undefined) {
-    navigator.mediaDevices = {};
-  }
-
-  if (navigator.mediaDevices.getUserMedia === undefined) {
-    navigator.mediaDevices.getUserMedia = function (constraints) {
-      let getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-
-      if (!getUserMedia) {
-        return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
-      }
-
-      return new Promise(function (resolve, reject) {
-        getUserMedia.call(navigator, constraints, resolve, reject);
-      });
-    };
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    messageArea.textContent = "Your browser does not support camera access. Please use a modern browser.";
+    return;
   }
 
   navigator.mediaDevices.getUserMedia({
@@ -88,7 +75,7 @@ function runWebcam() {
       };
     })
     .catch(function (err) {
-      messageArea.innerHTML = err.name + ": " + err.message;
+      messageArea.textContent = "Camera access denied. Please allow camera permissions and try again.";
     });
 }
 
@@ -98,7 +85,7 @@ function takeAPhoto() {
 
   img = document.createElement('img');
   img.id = 'user-image';
-  img.src = canvasPhoto.toDataURL('image/jpg', 1.0);
+  img.src = canvasPhoto.toDataURL('image/jpeg', 1.0);
   $('#image-display').prepend(img);
 
   window.stream.getTracks().forEach(function(track) {
@@ -180,7 +167,7 @@ window.onload = function(){
 
     let url = '/analyze';                
     let image = img.src;
-    let base64ImageContent = image.replace(/^data:image\/(png|jpg);base64,/, "");
+    let base64ImageContent = image.replace(/^data:image\/(png|jpeg);base64,/, "");
     let blob = base64ToBlob(base64ImageContent, 'image/png');                
     
     let blobFile = document.getElementById('blob-file');
@@ -190,7 +177,7 @@ window.onload = function(){
     container.items.add(file);
     blobFile.files = container.files;
 
-    formData = new FormData(form);
+    formData = new FormData(form[0]);
 
     $.ajax({
       url: url,
@@ -212,3 +199,9 @@ window.onload = function(){
   });
   },false);
 }
+
+window.addEventListener('beforeunload', function() {
+  if (window.stream) {
+    window.stream.getTracks().forEach(function(track) { track.stop(); });
+  }
+});

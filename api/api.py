@@ -1,9 +1,10 @@
 import json
+import os
 import requests
 from tqdm import tqdm
 from .secret import API, get_response
 
-DATABASE = "./api/db.json"
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db.json")
 
 def make_request(api_name, params, headers):
     api_dict = API[api_name]

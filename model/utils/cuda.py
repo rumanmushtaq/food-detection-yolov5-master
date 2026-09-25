@@ -13,9 +13,14 @@ except ImportError:
 
 def get_devices_info(gpu_devices="0"):
     devices_info = ""
+    if not torch.cuda.is_available():
+        return "No CUDA devices available, using CPU\n"
     for i, device_id in enumerate(gpu_devices.split(',')):
-        p = torch.cuda.get_device_properties(i)
-        devices_info += f"CUDA:{device_id} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
+        try:
+            p = torch.cuda.get_device_properties(i)
+            devices_info += f"CUDA:{device_id} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
+        except (AssertionError, RuntimeError):
+            devices_info += f"CUDA:{device_id} (unavailable)\n"
     return devices_info
 
 class ApexScaler:
