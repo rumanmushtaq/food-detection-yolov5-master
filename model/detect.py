@@ -1,9 +1,11 @@
+import threading
 from model.utils.getter import *
 
 CACHE_DIR='./.cache'
 
 # Global model, only changes when model name changes
 DETECTOR = None
+_DETECTOR_LOCK = threading.Lock()
 
 class Testset():
     def __init__(self, config, input_path, transforms=None):
@@ -78,7 +80,7 @@ class Testset():
 
 def detect(args, config):
     global DETECTOR
-    
+
     num_gpus = len(args.gpus.split(','))
     devices_info = get_devices_info(args.gpus)
 
@@ -91,7 +93,7 @@ def detect(args, config):
     ])
 
     testset = Testset(
-        config, 
+        config,
         args.input_path,
         transforms=test_transforms)
     testloader = DataLoader(
@@ -104,15 +106,15 @@ def detect(args, config):
 
     class_names, num_classes = get_class_names(args.weight)
     class_names = ['Background'] + list(class_names)
-    
-    if DETECTOR is None or DETECTOR.model_name != config.model_name:
-        net = get_model(args, config, num_classes=num_classes)
-        DETECTOR = Detector(model = net, freeze=True, device = device)
-        load_checkpoint(DETECTOR, args.weight)
-        ## Print info
-        print(config)
-        
-    DETECTOR.eval()
+
+    with _DETECTOR_LOCK:
+        if DETECTOR is None or DETECTOR.model_name != config.model_name:
+            net = get_model(args, config, num_classes=num_classes)
+            DETECTOR = Detector(model = net, freeze=True, device = device)
+            load_checkpoint(DETECTOR, args.weight)
+            print(config)
+
+        DETECTOR.eval()
 
 
     

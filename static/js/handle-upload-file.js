@@ -23,19 +23,27 @@ function showPicked(input) {
     var file_url = e.target.result
 
     if (extension === "mp4" || extension === 'avi' || extension === '3gpp' || extension === '3gp'){
-      var video_html = '<video autoplay id="user-video" controls> <source id="user-source"></source></video>'
-      $('#image-display').html(video_html); // replaces previous video
-      var video = el("user-video");
-      var source = el("user-source");
-      source.setAttribute("src", file_url);
+      var container = document.getElementById('image-display');
+      var video = document.createElement('video');
+      video.id = 'user-video';
+      video.autoplay = true;
+      video.controls = true;
+      var source = document.createElement('source');
+      source.id = 'user-source';
+      source.src = file_url;
+      video.appendChild(source);
+      container.appendChild(video);
       video.load();
       video.play();
     }
 
     else if(extension === "jpg" || extension === "jpeg" || extension === "png"){
-      var img_html = '<img id="user-image" src="' + file_url + '" style="display: block;margin-left: auto;margin-right: auto;max-width: 100%; height: auto"/>';
-      $('#image-display').html(img_html); // replaces previous img
-
+      var container = document.getElementById('image-display');
+      var img = document.createElement('img');
+      img.id = 'user-image';
+      img.src = file_url;
+      img.style.cssText = 'display:block;margin-left:auto;margin-right:auto;max-width:100%;height:auto';
+      container.appendChild(img);
     }
   
   };

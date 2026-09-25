@@ -1,3 +1,5 @@
+import threading
+
 from .utils.getter import *
 import os
 import torch
@@ -12,6 +14,7 @@ from .augmentations.transforms import MEAN, STD
 
 # Global model, only changes when model name changes
 CLASSIFIER = None
+_CLASSIFIER_LOCK = threading.Lock()
 
 class ClassificationTestset():
     def __init__(self, config, img_list):
@@ -61,17 +64,16 @@ def classify(weight, img_list):
 
     class_names, num_classes = get_class_names(weight)
 
-    if CLASSIFIER is None or CLASSIFIER.model_name != config.model_name:
-        net = BaseTimmModel(
-            name=config.model_name, 
-            num_classes=num_classes)
-        CLASSIFIER = Classifier( model = net,  device = device, freeze=True)
-        load_checkpoint(CLASSIFIER, weight)
+    with _CLASSIFIER_LOCK:
+        if CLASSIFIER is None or CLASSIFIER.model_name != config.model_name:
+            net = BaseTimmModel(
+                name=config.model_name,
+                num_classes=num_classes)
+            CLASSIFIER = Classifier( model = net,  device = device, freeze=True)
+            load_checkpoint(CLASSIFIER, weight)
+            print(config)
 
-        ## Print info
-        print(config)
-
-    CLASSIFIER.eval()
+        CLASSIFIER.eval()
 
     pred_list = []
     prob_list = []

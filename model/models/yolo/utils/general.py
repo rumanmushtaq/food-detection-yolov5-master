@@ -60,7 +60,14 @@ def get_latest_run(search_dir='./runs'):
 def check_git_status():
     # Suggest 'git pull' if repo is out of date
     if platform in ['linux', 'darwin'] and not os.path.isfile('/.dockerenv'):
-        s = subprocess.check_output('if [ -d .git ]; then git fetch && git status -uno; fi', shell=True).decode('utf-8')
+        if not os.path.isdir('.git'):
+            return
+        try:
+            subprocess.run(['git', 'fetch'], check=True, capture_output=True)
+            result = subprocess.run(['git', 'status', '-uno'], capture_output=True, text=True)
+            s = result.stdout
+        except Exception:
+            return
         if 'Your branch is behind' in s:
             print(s[s.find('Your branch is behind'):s.find('\n\n')] + '\n')
 
@@ -139,7 +146,7 @@ def labels_to_class_weights(labels, nc=80):
         return torch.Tensor()
 
     labels = np.concatenate(labels, 0)  # labels.shape = (866643, 5) for COCO
-    classes = labels[:, 0].astype(np.int)  # labels = [class xywh]
+    classes = labels[:, 0].astype(np.intp)  # labels = [class xywh]
     weights = np.bincount(classes, minlength=nc)  # occurences per class
 
     # Prepend gridpoint count (for uCE trianing)
@@ -155,7 +162,7 @@ def labels_to_class_weights(labels, nc=80):
 def labels_to_image_weights(labels, nc=80, class_weights=np.ones(80)):
     # Produces image weights based on class mAPs
     n = len(labels)
-    class_counts = np.array([np.bincount(labels[i][:, 0].astype(np.int), minlength=nc) for i in range(n)])
+    class_counts = np.array([np.bincount(labels[i][:, 0].astype(np.intp), minlength=nc) for i in range(n)])
     image_weights = (class_weights.reshape(1, nc) * class_counts).sum(1)
     # index = random.choices(range(n), weights=image_weights, k=1)  # weight image sample
     return image_weights
@@ -738,7 +745,7 @@ def print_mutation(hyp, results, yaml_file='hyp_evolved.yaml', bucket=''):
     print('\n%s\n%s\nEvolved fitness: %s\n' % (a, b, c))
 
     if bucket:
-        os.system('gsutil cp gs://%s/evolve.txt .' % bucket)  # download evolve.txt
+        subprocess.run(['gsutil', 'cp', f'gs://{bucket}/evolve.txt', '.'], check=False)
 
     with open('evolve.txt', 'a') as f:  # append result
         f.write(c + b + '\n')
@@ -747,7 +754,7 @@ def print_mutation(hyp, results, yaml_file='hyp_evolved.yaml', bucket=''):
     np.savetxt('evolve.txt', x, '%10.3g')  # save sort by fitness
 
     if bucket:
-        os.system('gsutil cp evolve.txt gs://%s' % bucket)  # upload evolve.txt
+        subprocess.run(['gsutil', 'cp', 'evolve.txt', f'gs://{bucket}'], check=False)
 
     # Save yaml
     for i, k in enumerate(hyp.keys()):
@@ -1125,7 +1132,8 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(),
     s = ['GIoU', 'Objectness', 'Classification', 'Precision', 'Recall',
          'val GIoU', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
     if bucket:
-        os.system('rm -rf storage.googleapis.com')
+        import shutil
+        shutil.rmtree('storage.googleapis.com', ignore_errors=True)
         files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
     else:
         files = glob.glob(str(Path(save_dir) / 'results*.txt')) + glob.glob('../../Downloads/results*.txt')

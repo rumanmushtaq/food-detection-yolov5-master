@@ -100,7 +100,7 @@ def get_augmentation(_type='train'):
         ], p=0.7),
 
         A.OneOf([
-            A.IAASharpen(p=color_config['sharpen']), 
+            A.Sharpen(p=color_config['sharpen']),
             A.Compose([
                 A.FromFloat(dtype='uint8', p=1),
                 A.OneOf([

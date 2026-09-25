@@ -38,6 +38,5 @@ webcolors
 # YouTube download
 yt-dlp
 
-# HTTPS support
-pyOpenSSL
-cryptography
+# Security
+flask-limiter>=3.0.0

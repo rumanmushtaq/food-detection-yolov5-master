@@ -1,30 +1,53 @@
 import os
 import argparse
+import ipaddress
 import requests
 import cv2
 import numpy as np
 import tldextract
-import pytube
+import yt_dlp
 import hashlib
 import time
 import base64
+from urllib.parse import urlparse
 
 from PIL import Image
 from flask import Flask, request, render_template, redirect, make_response, jsonify
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from modules import get_prediction, get_video_prediction
-from flask_ngrok import run_with_ngrok
 from flask_cors import CORS, cross_origin
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+limiter = Limiter(get_remote_address, app=app, default_limits=["60 per minute"])
 
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 1
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB limit
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
+
+
+def _is_safe_url(url):
+    """Reject URLs pointing to private/internal networks (SSRF protection)."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        import socket
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        for info in socket.getaddrinfo(hostname, None):
+            addr = ipaddress.ip_address(info[4][0])
+            if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local:
+                return False
+    except Exception:
+        return False
+    return True
 
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'assets', 'uploads')
@@ -72,9 +95,14 @@ def download_yt(url):
     """
     Download youtube video by url and save to video folder
     """
-    youtube = pytube.YouTube(url)
-    video = youtube.streams.get_highest_resolution()
-    path = video.download(app.config['VIDEO_FOLDER'])
+    ydl_opts = {
+        'outtmpl': os.path.join(app.config['VIDEO_FOLDER'], '%(id)s.%(ext)s'),
+        'format': 'best[ext=mp4]/best',
+        'quiet': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        path = ydl.prepare_filename(info)
 
     return path
 
@@ -114,6 +142,9 @@ def download(url):
         Path(ori_path).rename(path)
 
     else:
+        if not _is_safe_url(url):
+            raise ValueError("URL points to a private or disallowed network address")
+
         make_dir(app.config['UPLOAD_FOLDER'])
         headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2)',
                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -121,7 +152,7 @@ def download(url):
                    'Accept-Encoding': 'none',
                    'Accept-Language': 'en-US,en;q=0.8',
                    'Connection': 'keep-alive'}
-        r = requests.get(url, stream=True, headers=headers)
+        r = requests.get(url, stream=True, headers=headers, timeout=30)
         print('Image Url')
 
         # Get cache name by hashing image
@@ -161,9 +192,7 @@ def save_upload(file):
 
 @app.route('/')
 def homepage():
-    resp = make_response(render_template("upload-file.html"))
-    resp.headers['Access-Control-Allow-Origin'] = '*'
-    return resp
+    return render_template("upload-file.html")
 
 
 @app.route('/about')
@@ -182,7 +211,7 @@ def detect_by_webcam_page():
 
 
 @app.route('/analyze', methods=['POST', 'GET'])
-@cross_origin(supports_credentials=True)
+@limiter.limit("10 per minute")
 def analyze():
     if request.method == 'POST':
         try:
@@ -316,6 +345,7 @@ def analyze():
 
 
 @app.route('/api', methods=['POST'])
+@limiter.limit("20 per minute")
 def api_call():
     if request.method == 'POST':
         response = {}
@@ -391,7 +421,11 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
     if args.ngrok:
-        run_with_ngrok(app)
+        try:
+            from flask_ngrok import run_with_ngrok
+            run_with_ngrok(app)
+        except ImportError:
+            print("flask_ngrok not installed, running locally instead")
         app.run()
     else:
         hostname = str.split(args.host, ':')
@@ -401,7 +435,7 @@ if __name__ == '__main__':
             port = hostname[1]
         host = hostname[0]
 
-        app.run(host=host, port=port, debug=args.debug, use_reloader=False,
-                ssl_context='adhoc')
+        debug = args.debug and os.environ.get('FLASK_ENV') != 'production'
+        app.run(host=host, port=port, debug=debug, use_reloader=False)
 
 # Run: python app.py --host localhost:8000

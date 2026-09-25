@@ -135,19 +135,60 @@ class Yolov4(nn.Module):
         model_info(self)
 
 
+_MODULE_LOOKUP = {
+    'nn.Conv2d': nn.Conv2d, 'nn.BatchNorm2d': nn.BatchNorm2d,
+    'nn.LeakyReLU': nn.LeakyReLU, 'nn.Identity': nn.Identity, 'nn.Upsample': nn.Upsample,
+    'Conv': Conv, 'Bottleneck': Bottleneck, 'BottleneckCSP': BottleneckCSP,
+    'BottleneckCSP2': BottleneckCSP2, 'SPP': SPP, 'SPPCSP': SPPCSP,
+    'DWConv': DWConv, 'MixConv2d': MixConv2d, 'Focus': Focus,
+    'CrossConv': CrossConv, 'VoVCSP': VoVCSP, 'C3': C3, 'C3TR': C3TR,
+    'Concat': Concat, 'Detect': Detect, 'NMS': NMS, 'Contract': Contract, 'Expand': Expand,
+    'GhostConv': GhostConv, 'GhostBottleneck': GhostBottleneck,
+    'HarDBlock': HarDBlock, 'HarDBlock2': HarDBlock2, 'MP': MP,
+}
+
+
+def _safe_resolve(name):
+    if isinstance(name, str):
+        if name in _MODULE_LOOKUP:
+            return _MODULE_LOOKUP[name]
+        raise ValueError(f"Unknown module: {name}")
+    return name
+
+
+def _safe_eval_arg(a):
+    if isinstance(a, str):
+        if a in _MODULE_LOOKUP:
+            return _MODULE_LOOKUP[a]
+        try:
+            return int(a)
+        except ValueError:
+            pass
+        try:
+            return float(a)
+        except ValueError:
+            pass
+        if a.startswith('[') or a.startswith('('):
+            import ast
+            return ast.literal_eval(a)
+        if a in ('True', 'False', 'None'):
+            return {'True': True, 'False': False, 'None': None}[a]
+        raise ValueError(f"Cannot safely evaluate argument: {a}")
+    return a
+
+
 def parse_model(d, ch):  # model_dict, input_channels(3)
-    # print('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
     no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
-        m = eval(m) if isinstance(m, str) else m  # eval strings
+        m = _safe_resolve(m)
         for j, a in enumerate(args):
             try:
-                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
-            except:
+                args[j] = _safe_eval_arg(a)
+            except (ValueError, SyntaxError):
                 pass
 
         n = max(round(n * gd), 1) if n > 1 else n  # depth gain
@@ -323,18 +364,17 @@ class Yolov5(nn.Module):
         model_info(self, verbose, img_size)
 
 def parse_model_v5(d, ch):  # model_dict, input_channels(3)
-    # logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
     no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
-        m = eval(m) if isinstance(m, str) else m  # eval strings
+        m = _safe_resolve(m)
         for j, a in enumerate(args):
             try:
-                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
-            except:
+                args[j] = _safe_eval_arg(a)
+            except (ValueError, SyntaxError):
                 pass
 
         n = max(round(n * gd), 1) if n > 1 else n  # depth gain

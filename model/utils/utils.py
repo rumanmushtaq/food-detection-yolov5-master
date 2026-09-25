@@ -194,7 +194,19 @@ def download_weights(id_or_url, cached=None, md5=None, quiet=False):
     else:
         url = 'https://drive.google.com/uc?id={}'.format(id_or_url)
 
-    return gdown.download(url=url, output=cached, quiet=quiet)
+    path = gdown.download(url=url, output=cached, quiet=quiet)
+
+    if md5 and path:
+        import hashlib
+        h = hashlib.md5()
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                h.update(chunk)
+        if h.hexdigest() != md5:
+            os.remove(path)
+            raise ValueError(f"MD5 mismatch for {path}: expected {md5}, got {h.hexdigest()}")
+
+    return path
 
 
 weight_url = {
