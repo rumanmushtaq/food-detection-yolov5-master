@@ -227,3 +227,4 @@ We conclude that the learned models are quite good compared to such huge data wi
 - Awesome object detection's custom template: https://github.com/kaylode/custom-template/tree/detection
 - Edamam API: https://developer.edamam.com/food-database-api-docs
 - Chart.js: https://github.com/chartjs/Chart.js
+# food-detection-yolov5-master
